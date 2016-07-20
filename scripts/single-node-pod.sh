@@ -62,7 +62,7 @@ function setup_openstack() {
 
 function setup_xos() {
 
-    ssh ubuntu@xos "cd service-profile/cord-pod; make cord-subscriber"
+    ssh ubuntu@xos-1 "cd service-profile/cord-pod; make cord-subscriber"
 
     if [[ $EXAMPLESERVICE -eq 1 ]]
     then
