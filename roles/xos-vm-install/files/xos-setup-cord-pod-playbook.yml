@@ -21,6 +21,9 @@
        - python-keystoneclient
        - python-glanceclient
 
+    - name: configure git to use https and not native git protocol
+      command: git config --global url."https://".insteadOf "git://"
+
     - name: Clone XOS repo
       git:
         repo={{ xos_repo_url }}

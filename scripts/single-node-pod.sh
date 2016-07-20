@@ -35,7 +35,7 @@ function bootstrap() {
     [ -e ~/.ssh/id_rsa ] || ssh-keygen -t rsa -N "" -f ~/.ssh/id_rsa
     cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
 
-    git clone https://github.com/open-cloud/openstack-cluster-setup.git
+    git clone https://github.com/girishgc/openstack-cluster-setup.git
     cd ~/openstack-cluster-setup
     git checkout $SETUP_BRANCH
 
@@ -57,7 +57,7 @@ function setup_openstack() {
       extra_vars="$extra_vars on_cloudlab=True"
     fi
 
-    ansible-playbook -i $INVENTORY cord-single-playbook.yml --extra-vars="$extra_vars"
+    ansible-playbook -i $INVENTORY cord-single-playbook.yml --extra-vars="$extra_vars" --ask-sudo-pass
 }
 
 function setup_xos() {
@@ -66,30 +66,30 @@ function setup_xos() {
 
     if [[ $EXAMPLESERVICE -eq 1 ]]
     then
-      ssh ubuntu@xos "cd service-profile/cord-pod; make exampleservice"
+      ssh ubuntu@xos-1 "cd service-profile/cord-pod; make exampleservice"
     fi
 
     echo ""
     echo "(Temp workaround for bug in Synchronizer) Pause 60 seconds"
     sleep 60
-    ssh ubuntu@xos "cd service-profile/cord-pod; make vtn"
+    ssh ubuntu@xos-1 "cd service-profile/cord-pod; make vtn"
 }
 
 function setup_test_client() {
-    ssh ubuntu@nova-compute "sudo apt-get -y install lxc"
+    ssh ubuntu@nova-compute-1 "sudo apt-get -y install lxc"
 
     # Change default bridge
-    ssh ubuntu@nova-compute "sudo sed -i 's/lxcbr0/databr/' /etc/lxc/default.conf"
+    ssh ubuntu@nova-compute-1 "sudo sed -i 's/lxcbr0/databr/' /etc/lxc/default.conf"
 
     # Create test client
-    ssh ubuntu@nova-compute "sudo lxc-create -t ubuntu -n testclient"
-    ssh ubuntu@nova-compute "sudo lxc-start -n testclient"
+    ssh ubuntu@nova-compute-1 "sudo lxc-create -t ubuntu -n testclient"
+    ssh ubuntu@nova-compute-1 "sudo lxc-start -n testclient"
 
     # Configure network interface inside of test client with s-tag and c-tag
-    ssh ubuntu@nova-compute "sudo lxc-attach -n testclient -- ip link add link eth0 name eth0.222 type vlan id 222"
-    ssh ubuntu@nova-compute "sudo lxc-attach -n testclient -- ip link add link eth0.222 name eth0.222.111 type vlan id 111"
-    ssh ubuntu@nova-compute "sudo lxc-attach -n testclient -- ifconfig eth0.222 up"
-    ssh ubuntu@nova-compute "sudo lxc-attach -n testclient -- ifconfig eth0.222.111 up"
+    ssh ubuntu@nova-compute-1 "sudo lxc-attach -n testclient -- ip link add link eth0 name eth0.222 type vlan id 222"
+    ssh ubuntu@nova-compute-1 "sudo lxc-attach -n testclient -- ip link add link eth0.222 name eth0.222.111 type vlan id 111"
+    ssh ubuntu@nova-compute-1 "sudo lxc-attach -n testclient -- ifconfig eth0.222 up"
+    ssh ubuntu@nova-compute-1 "sudo lxc-attach -n testclient -- ifconfig eth0.222.111 up"
 }
 
 function run_e2e_test() {
@@ -109,28 +109,36 @@ function run_e2e_test() {
     ID=$( nova list --all-tenants|grep mysite_vsg|awk '{print $2}' )
     MGMTIP=$( nova interface-list $ID|grep 172.27|awk '{print $8}' )
 
+    #Add the namserver to /etc/resolv.conf. Otherwise we dont have internet connectivity to pull the vCPE docker image
+    ssh -o ProxyCommand="ssh -W %h:%p ubuntu@nova-compute-1" ubuntu@$MGMTIP "sudo sh -c 'echo \"nameserver $NAMESERVER\" > /etc/resolv.conf'"
+
     echo ""
     echo "*** ssh into vsg VM, wait for Docker container to come up"
     i=0
-    until ssh -o ProxyCommand="ssh -W %h:%p ubuntu@nova-compute" ubuntu@$MGMTIP "sudo docker ps|grep vcpe" > /dev/null
+    until ssh -o ProxyCommand="ssh -W %h:%p ubuntu@nova-compute-1" ubuntu@$MGMTIP "sudo docker ps|grep vcpe" > /dev/null
     do
       sleep 60
       (( i += 1 ))
       echo "Waited $i minutes"
+      if [ $i -gt 4 ]
+      then
+	 ssh -o ProxyCommand="ssh -W %h:%p ubuntu@nova-compute-1" ubuntu@MGMTIP "sudo sh -c 'echo \"nameserver $NAMESERVER\" > /etc/resolv.conf'"
+      fi
     done
 
     echo ""
     echo "*** Run dhclient in test client"
 
-    ssh ubuntu@nova-compute "sudo lxc-attach -n testclient -- dhclient eth0.222.111" > /dev/null
+    ssh ubuntu@nova-compute-1 "sudo lxc-attach -n testclient -- dhclient eth0.222.111" > /dev/null
 
     echo ""
     echo "*** Routes in test client"
-    ssh ubuntu@nova-compute "sudo lxc-attach -n testclient -- route -n"
+    ssh ubuntu@nova-compute-1 "sudo lxc-attach -n testclient -- route -n"
 
     echo ""
     echo "*** Test external connectivity in test client"
-    ssh ubuntu@nova-compute "sudo lxc-attach -n testclient -- ping -c 3 8.8.8.8"
+    ssh ubuntu@nova-compute-1 "sudo lxc-attach -n testclient -- sudo apt-get install curl -y"
+    ssh ubuntu@nova-compute-1 "sudo lxc-attach -n testclient -- curl www.google.com"
 
     echo ""
     if [ $? -eq 0 ]
@@ -164,7 +172,7 @@ function run_exampleservice_test () {
     echo ""
     echo "*** ssh into exampleservice VM, wait for Apache come up"
     i=0
-    until ssh -o ProxyCommand="ssh -W %h:%p ubuntu@nova-compute" ubuntu@$MGMTIP "ls /var/run/apache2/apache2.pid"
+    until ssh -o ProxyCommand="ssh -W %h:%p ubuntu@nova-compute-1" ubuntu@$MGMTIP "ls /var/run/apache2/apache2.pid"
     do
       sleep 60
       (( i += 1 ))
@@ -174,26 +182,27 @@ function run_exampleservice_test () {
 
     echo ""
     echo "*** Install curl in test client"
-    ssh ubuntu@nova-compute "sudo lxc-attach -n testclient -- apt-get -y install curl"
+    ssh ubuntu@nova-compute-1 "sudo lxc-attach -n testclient -- apt-get -y install curl"
 
     echo ""
     echo "*** Test connectivity to ExampleService from test client"
-    ssh ubuntu@nova-compute "sudo lxc-attach -n testclient -- curl -s http://$PUBLICIP"
+    ssh ubuntu@nova-compute-1 "sudo lxc-attach -n testclient -- curl -s http://$PUBLICIP"
 }
 
 function run_diagnostics() {
     echo "*** COLLECTING DIAGNOSTIC INFO - check ~/diag-* on the head node"
-    ansible-playbook -i $INVENTORY cord-diag-playbook.yml
+    ansible-playbook -i $INVENTORY cord-diag-playbook.yml --ask-sudo-pass
 }
 
 # Parse options
+NAMESERVER=172.24.100.50
 RUN_TEST=0
 EXAMPLESERVICE=0
 SETUP_BRANCH="master"
 INVENTORY="inventory/single-localhost"
 XOS_BRANCH="master"
 XOS_REPO_URL="https://gerrit.opencord.org/xos"
-DIAGNOSTICS=1
+DIAGNOSTICS=0
 
 while getopts "b:dehi:r:ts:" opt; do
   case ${opt} in
@@ -233,6 +242,7 @@ done
 if [[ $RUN_TEST -eq 1 ]]
 then
   cleanup_from_previous_test
+  echo "cleanup done"
 fi
 
 set -e

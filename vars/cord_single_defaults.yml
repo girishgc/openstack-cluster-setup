@@ -17,7 +17,7 @@ xos_configuration: cord-pod
 
 xos_repo_branch: "master"
 
-apt_cacher_name: apt-cache
+apt_cacher_name: 192.168.122.1
 
 apt_ssl_sites:
   - apt.dockerproject.org

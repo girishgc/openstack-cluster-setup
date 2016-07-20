@@ -19,7 +19,7 @@ xos_repo_branch: "master"
 
 xos_repo_dest: "~/xos"
 
-apt_cacher_name: apt-cache
+apt_cacher_name: 192.168.122.1
 
 apt_ssl_sites:
   - apt.dockerproject.org

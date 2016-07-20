@@ -19,11 +19,11 @@
     - dns-unbound
     - apt-cacher-ng
 
-- name: Configure all hosts to use DNS server
-  hosts: head
-  become: yes
-  roles:
-    - dns-configure
+#- name: Configure all hosts to use DNS server
+#  hosts: head
+#  become: yes
+#  roles:
+#    - dns-configure
 
 - name: Prep systems
   hosts: head

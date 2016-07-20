@@ -4,7 +4,7 @@
 - hosts: cloudlab
 
   vars:
-    xos_repo_url: "https://github.com/open-cloud/xos"
+    xos_repo_url: "https://github.com/girishgc/xos"
     xos_repo_dest: "~/xos"
     xos_repo_branch: "feature/lts"
     xos_configuration: "devel"

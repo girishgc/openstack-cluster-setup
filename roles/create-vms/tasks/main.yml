@@ -14,6 +14,10 @@
     command=autostart
   with_items: "{{ head_vm_list }}"
 
+- name: Update Host names to /etc/hosts
+  sudo: yes
+  shell: "{{ role_path }}/files/updateEtcHosts.sh"
+
 - name: wait for VM's to come up
   wait_for:
     host={{ item.name }}

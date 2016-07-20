@@ -14,9 +14,9 @@ keystone:
   admin-password: "{{ keystone_admin_password }}"
   os-public-hostname: "keystone.{{ site_suffix }}"
   ha-mcastport: 5403
-  https-service-endpoints: "True"
+#  https-service-endpoints: "True"
   openstack-origin: "cloud:trusty-kilo"
-  use-https: "yes"
+#  use-https: "yes"
 
 mongodb: {}
 
@@ -42,6 +42,7 @@ nova-compute:
   config-flags: "firewall_driver=nova.virt.firewall.NoopFirewallDriver"
   disable-neutron-security-groups: "True"
   openstack-origin: "cloud:trusty-kilo"
+  verbose: True
 
 nrpe: {}
 
