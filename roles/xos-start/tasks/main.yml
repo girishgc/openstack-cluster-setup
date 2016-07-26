@@ -1,6 +1,9 @@
 ---
 # xos-start/tasks/main.yml
 
+- name: Replace git:// with https://
+  command: ansible xos-1 -u ubuntu -m shell -a "grep -rl "git://" . | xargs sed -i 's/git:\/\//https:\/\//g'"
+
 - name: Build XOS containers
   command: ansible xos-1 -u ubuntu -m shell \
     -a "cd {{ service_profile_repo_dest }}/{{ xos_configuration }}; make local_containers | tee xos-build.out"
