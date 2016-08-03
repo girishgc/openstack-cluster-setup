@@ -120,9 +120,9 @@ services:
     options:
       admin-password: 'ADMIN_PASS'
       ha-mcastport: 5403
-      https-service-endpoints: False
+      https-service-endpoints: True
       openstack-origin: cloud:trusty-kilo
-      use-https: no
+      use-https: yes
     to:
     - '3'
   mongodb:
